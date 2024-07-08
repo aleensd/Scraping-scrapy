@@ -1,0 +1,16 @@
+#IDE
+.idea/
+
+#venv
+venv/
+.env
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+
+metadata.csv
+
+metadata.json
+
+pdfs/
+
