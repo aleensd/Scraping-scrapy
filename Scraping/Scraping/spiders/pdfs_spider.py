@@ -2,6 +2,8 @@ import scrapy
 import json
 import os
 
+from ..items import ScrapingItem
+
 
 class PDFScraperSpider(scrapy.Spider):
     name = 'pdf_scraper'
@@ -20,8 +22,8 @@ class PDFScraperSpider(scrapy.Spider):
         'FEED_FORMAT': 'json',
         'FEED_URI': 'metadata.json',
         'DOWNLOAD_DELAY': 1,
-        'CONCURRENT_REQUESTS': 32,  # Increase concurrency for scraping
-        'CONCURRENT_REQUESTS_PER_DOMAIN': 32,
+        'CONCURRENT_REQUESTS': 50,  # Increase concurrency for scraping
+        'CONCURRENT_REQUESTS_PER_DOMAIN': 50,
     }
 
     def start_requests(self):
@@ -44,18 +46,19 @@ class PDFScraperSpider(scrapy.Spider):
             yield scrapy.Request(url=full_link, callback=self.parse_pdf)
 
     def parse_pdf(self, response):
-        metadata = {
-            'title': response.xpath("//span[@data-testid='subTitle']/text()").get().strip(),
-            'url': response.url,
-            'malnummer': self.extract_value_list_content(response, 'Målnummer'),
-            'benamning': self.extract_value_list_content(response, 'Benämning'),
-            'lagrum': self.extract_value_list_content(response, 'Lagrum', 'li'),
-            'rattsfall': self.extract_value_list_content(response, 'Rättsfall', 'li'),
-            'sokord': self.extract_value_list_content(response, 'Sökord', 'link')
-        }
+        metadata = ScrapingItem()
+        metadata['title'] = response.xpath("//span[@data-testid='subTitle']/text()").get().strip()
+        metadata['malnummer'] = self.extract_value_list_content(response, 'Målnummer')
+        metadata['benamning'] = self.extract_value_list_content(response, 'Benämning')
+        metadata['lagrum'] = self.extract_value_list_content(response, 'Lagrum', 'li')
+        metadata['rattsfall'] = self.extract_value_list_content(response, 'Rättsfall', 'li')
+        metadata['sokord'] = self.extract_value_list_content(response, 'Sökord', 'link')
 
+        pdf_url = response.xpath('//div[@class="card__inner"]//a/@href').get()
+        if pdf_url:
+            metadata['url'] = response.url
+            metadata['file_urls'] = [self.base_url + pdf_url]
         yield metadata
-
 
     @staticmethod
     def extract_value_list_content(response, title, type="text") -> str | list[str] | None:

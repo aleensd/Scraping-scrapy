@@ -12,7 +12,6 @@ BOT_NAME = "Scraping"
 SPIDER_MODULES = ["Scraping.spiders"]
 NEWSPIDER_MODULE = "Scraping.spiders"
 
-
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = "Scraping (+http://www.yourdomain.com)"
 
@@ -50,9 +49,9 @@ ROBOTSTXT_OBEY = True
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-DOWNLOADER_MIDDLEWARES = {
-   "Scraping.middlewares.ScrapingDownloaderMiddleware": 543,
-}
+# DOWNLOADER_MIDDLEWARES = {
+#     "Scraping.middlewares.ScrapingDownloaderMiddleware": 543,
+# }
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -62,9 +61,16 @@ DOWNLOADER_MIDDLEWARES = {
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    "Scraping.pipelines.ScrapingPipeline": 300,
-#}
+ITEM_PIPELINES = {
+    'Scraping.pipelines.PDFDownloadPipeline': 1,
+}
+
+FILES_STORE = '.'
+
+FILES_LIMIT = 10  # Add a custom setting to limit the number of PDFs
+
+# 120 days of delay for files expiration
+FILES_EXPIRES = 120
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html

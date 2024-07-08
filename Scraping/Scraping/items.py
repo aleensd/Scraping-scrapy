@@ -7,6 +7,12 @@ import scrapy
 
 
 class ScrapingItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+    file_urls = scrapy.Field()  # List of URLs to download
+    # Other metadata fields
+    title = scrapy.Field()
+    url = scrapy.Field()
+    malnummer = scrapy.Field()
+    benamning = scrapy.Field()
+    lagrum = scrapy.Field()
+    rattsfall = scrapy.Field()
+    sokord = scrapy.Field()
