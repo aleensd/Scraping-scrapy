@@ -56,8 +56,10 @@ class PDFScraperSpider(scrapy.Spider):
 
         pdf_url = response.xpath('//div[@class="card__inner"]//a/@href').get()
         if pdf_url:
-            metadata['url'] = response.url
-            metadata['file_urls'] = [self.base_url + pdf_url]
+            metadata['url'] = pdf_url
+            if self.downloaded_pdfs <= self.pdfs_to_download:
+                metadata['file_urls'] = [self.base_url + pdf_url]
+                self.downloaded_pdfs += 1
         yield metadata
 
     @staticmethod

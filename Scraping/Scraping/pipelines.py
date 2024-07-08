@@ -21,8 +21,8 @@ class PDFDownloadPipeline(FilesPipeline):
     def get_media_requests(self, item, info):
         if 'file_urls' in item:
             for file_url in item['file_urls']:
-                request = scrapy.Request(file_url,meta={'filename': file_url.split('/')[-1]})
-                request.headers['Referer'] = item['url']  # Assuming item['url'] holds the referer URL
+                request = scrapy.Request(file_url, meta={'filename': file_url.split('/')[-1]})
+                # request.headers['Referer'] = item['url']  # Assuming item['url'] holds the referer URL
                 yield request
 
     def file_path(self, request, response=None, info=None, *, item=None):

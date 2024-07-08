@@ -65,9 +65,7 @@ ITEM_PIPELINES = {
     'Scraping.pipelines.PDFDownloadPipeline': 1,
 }
 
-FILES_STORE = '.'
-
-FILES_LIMIT = 10  # Add a custom setting to limit the number of PDFs
+FILES_STORE = './pdfs'
 
 # 120 days of delay for files expiration
 FILES_EXPIRES = 120
