@@ -1,8 +1,14 @@
+from datetime import datetime
+from collections import deque
+from scrapy import signals
+
 import scrapy
 import json
-import os
 
+from helpers.app_logger import get_logger
 from ..items import ScrapingItem
+
+logger = get_logger(__name__)
 
 
 class PDFScraperSpider(scrapy.Spider):
@@ -17,37 +23,51 @@ class PDFScraperSpider(scrapy.Spider):
     items_per_page = 20
     pdfs_to_download = 10
     downloaded_pdfs = 0
+    pdf_urls_queue = deque()
 
     custom_settings = {
         'FEED_FORMAT': 'json',
         'FEED_URI': 'metadata.json',
         'DOWNLOAD_DELAY': 1,
-        'CONCURRENT_REQUESTS': 50,  # Increase concurrency for scraping
+        'CONCURRENT_REQUESTS': 50,
         'CONCURRENT_REQUESTS_PER_DOMAIN': 50,
+        'ITEM_PIPELINES': {
+            'Scraping.pipelines.PDFDownloadPipeline': 1,
+        },
+        'FILES_STORE': './pdfs'
     }
 
     def start_requests(self):
+        logger.info("Starting requests")
         while self.skip < self.total_items:
-            yield scrapy.Request(
-                url=f'https://www.domstol.se/api/search/1122/?isZip=false&layoutRootId=0&query&scope=decision'
-                    f'&searchPageId=15264&skip={self.skip}&sortMode=mostRecent',
-                method='POST',
-                headers={'Content-Type': 'application/json'},
-                body=json.dumps({}),
-                callback=self.parse
-            )
-            self.skip += self.items_per_page
+            try:
+                yield scrapy.Request(
+                    url=f'https://www.domstol.se/api/search/1122/?isZip=false&layoutRootId=0&query&scope=decision'
+                        f'&searchPageId=15264&skip={self.skip}&sortMode=mostRecent',
+                    method='POST',
+                    headers={'Content-Type': 'application/json'},
+                    body=json.dumps({}),
+                    callback=self.parse
+                )
+                self.skip += self.items_per_page
+            except Exception as e:
+                logger.error(f"Error during start_requests: {e}")
 
     def parse(self, response, **kwargs):
-        data = json.loads(response.text)
-        for item in data['searchResultItems']:
-            link = item['link']['link']['url']
-            full_link = self.base_url + link
-            yield scrapy.Request(url=full_link, callback=self.parse_pdf)
+        logger.info(f"Parsing page: {response.url}")
+        try:
+            data = json.loads(response.text)
+            for item in data['searchResultItems']:
+                link = item['link']['link']['url']
+                full_link = self.base_url + link
+                yield scrapy.Request(url=full_link, callback=self.parse_pdf, meta={'date': item['footer']['date']})
+        except Exception as e:
+            logger.error(f"Error during parse: {e}")
 
     def parse_pdf(self, response):
+        logger.info(f"Parsing PDF metadata: {response.url}")
         metadata = ScrapingItem()
-        metadata['title'] = response.xpath("//span[@data-testid='subTitle']/text()").get().strip()
+        metadata['title'] = response.xpath("//span[@data-testid='subTitle']/text()").get().strip().replace('"', '')
         metadata['malnummer'] = self.extract_value_list_content(response, 'Målnummer')
         metadata['benamning'] = self.extract_value_list_content(response, 'Benämning')
         metadata['lagrum'] = self.extract_value_list_content(response, 'Lagrum', 'li')
@@ -55,11 +75,17 @@ class PDFScraperSpider(scrapy.Spider):
         metadata['sokord'] = self.extract_value_list_content(response, 'Sökord', 'link')
 
         pdf_url = response.xpath('//div[@class="card__inner"]//a/@href').get()
-        if pdf_url:
+        if pdf_url and '2024' in pdf_url:
             metadata['url'] = pdf_url
-            if self.downloaded_pdfs <= self.pdfs_to_download:
-                metadata['file_urls'] = [self.base_url + pdf_url]
-                self.downloaded_pdfs += 1
+            pdf_date = response.meta.get('date')  # Fetching date from meta
+            self.pdf_urls_queue.append((self.base_url + pdf_url, pdf_date))
+            logger.debug(f"Added PDF {pdf_url} with date {pdf_date} to queue.")
+
+        if len(self.pdf_urls_queue) == 77:
+            sorted_pdfs = sorted(self.pdf_urls_queue, key=lambda x: datetime.strptime(x[1], '%Y-%m-%d'), reverse=True)[
+                          :10]
+            metadata['file_urls'] = [url for url, _ in sorted_pdfs]
+
         yield metadata
 
     @staticmethod
@@ -73,15 +99,18 @@ class PDFScraperSpider(scrapy.Spider):
             if parent_div:
                 if type == 'text':
                     div = parent_div.xpath("following-sibling::div[@class='value-list' and @data-testid='ValueList']")
-                    return div.xpath("normalize-space()").get() if div else None
+                    return ' '.join(div.xpath(".//text()").getall()).strip().replace('"', '') if div else None
 
                 elif type == 'li':
                     ul_element = parent_div.xpath("following-sibling::ul[@class='value-list value-list--unordered' "
                                                   "and @data-testid='ValueListUnordered']")
-                    return ul_element.xpath(".//li[@class='value-list__item']/text()").getall() if ul_element else None
+                    extracted_items = [li.strip() for li in
+                                       ul_element.xpath(".//li[@class='value-list__item']/text()").getall()] \
+                        if ul_element else None
+                    return [item for item in extracted_items if item] if extracted_items else None
 
                 elif type == 'link':
                     div = parent_div.xpath("following-sibling::div[@class='value-list' and @data-testid='LinkList']")
-                    return div.xpath(".//a[@class='link']/@href").getall() if div else None
+                    return [link.strip() for link in div.xpath(".//a[@class='link']/@href").getall()] if div else None
 
         return None

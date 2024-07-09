@@ -18,6 +18,7 @@ class ScrapingPipeline:
 
 
 class PDFDownloadPipeline(FilesPipeline):
+
     def get_media_requests(self, item, info):
         if 'file_urls' in item:
             for file_url in item['file_urls']:
